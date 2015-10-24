@@ -1,0 +1,10 @@
+﻿<Window x:Class="Redactor.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:DrawingClasses="clr-namespace:Redactor"
+        Title="MainWindow" Height="350" Width="525">
+    <Grid>
+        <DrawingClasses:DrawingSurface x:Name="paintSurface" Background="White">
+        </DrawingClasses:DrawingSurface>
+    </Grid>
+</Window>
