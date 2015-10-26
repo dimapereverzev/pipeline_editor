@@ -7,11 +7,40 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Imaging;
 
 namespace Redactor
 {
     class DrawingSurface : Canvas
     {
+        class RedactingPipelineObjects : pipelineObject
+        {
+            public RedactingPipelineObjects(pipelineObject checkedObj):
+                base(checkedObj.center, checkedObj.width, checkedObj.height)
+            {
+                using (DrawingContext dc = this.RenderOpen())
+                {
+                    var pen = new Pen(Brushes.Red, 2);
+                    dc.DrawRectangle((Brush)null, pen, checkedObj.getRect());
+                }
+
+            }
+        };
+
+        class Barrel : pipelineObject
+        {
+            public Barrel():
+                base(new Point(60, 60), 40, 40)
+            {
+                using (DrawingContext dc = this.RenderOpen())
+                {
+                    var overlayImage = new BitmapImage(new Uri(@"C:\projects\c#\Redactor\Redactor\barrel.png"));
+                    dc.DrawImage(overlayImage,
+                           new Rect(-20, -20, 40, 40));
+                }
+            }
+        };
+
         VisualCollection visuals;
         DrawingVisual currentFocusedVisual;
         DrawingVisual currentCheckedVisual;
@@ -33,19 +62,8 @@ namespace Redactor
 
         void DrawingSurface_Loaded(object sender, RoutedEventArgs e)
         {
-            int x = 0;
-
-            for (int i = 0; i <= 2; i++)
-            {
-                DrawingVisual visual = new DrawingVisual();
-                using (DrawingContext dc = visual.RenderOpen())
-                {
-                    dc.DrawRectangle(Brushes.Red, new Pen(Brushes.Black, 2),
-                    new Rect(new Point(0 + x, 0), new Size(40, 40)));
-                }
-                visuals.Add(visual);
-                x += 60;
-            }
+            var obj = new Barrel();
+            visuals.Add((DrawingVisual)obj);
         }
 
         void DrawingSurface_MouseMove(object sender, MouseEventArgs e)
@@ -79,11 +97,7 @@ namespace Redactor
             }
             else
             {
-                using (DrawingContext dc = currentFocusedVisual.RenderOpen())
-                {
-                    dc.DrawRectangle(Brushes.Red, new Pen(Brushes.Black, 2),
-                    new Rect(position, new Size(40, 40)));
-                }
+                ((pipelineObject)currentFocusedVisual).center = position;
             }
         }
 
@@ -102,20 +116,14 @@ namespace Redactor
             Point position = e.GetPosition(this);
             if (isDragVisual)
             {
-                DrawingVisual visual = this.GetVisual(position);
-                if (visual != null)
-                {
-                    using (DrawingContext dc = currentFocusedVisual.RenderOpen())
-                    {
-                        dc.DrawRectangle(Brushes.Red, new Pen(Brushes.Black, 2),
-                        new Rect(dragStart, new Size(40, 40)));
-                    }
-                    currentFocusedVisual.Opacity = 1;
-                    visual.Opacity = 0.5;
-                    currentFocusedVisual = visual;
-
-                }
+                ((pipelineObject)currentFocusedVisual).center = position;
+                var obj = (pipelineObject)currentFocusedVisual;
                 isDragVisual = false;
+                /*if (!obj.check)
+                {
+                    obj.check = true;
+                    visuals.Add((DrawingVisual)(new RedactingPipelineObjects(obj)));
+                }*/
             }
         }
 

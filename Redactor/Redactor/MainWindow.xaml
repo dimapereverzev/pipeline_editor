@@ -4,7 +4,6 @@
         xmlns:DrawingClasses="clr-namespace:Redactor"
         Title="MainWindow" Height="350" Width="525">
     <Grid>
-        <DrawingClasses:DrawingSurface x:Name="paintSurface" Background="White">
-        </DrawingClasses:DrawingSurface>
+        <DrawingClasses:DrawingSurface x:Name="paintSurface" Background="White"/>
     </Grid>
 </Window>
