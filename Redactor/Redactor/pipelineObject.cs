@@ -8,7 +8,62 @@ using System.Windows.Media;
 
 namespace Redactor
 {
-    class pipelineObject: DrawingVisual
+    abstract class PipelineObject : DrawingVisual
+    {
+        protected Point _leftTopPoint;
+        protected double _width;
+        protected double _height;
+        protected double _angle;
+        
+        private ScaleTransform _scaleTransform;
+        private TranslateTransform _translateTransform;
+
+        public PipelineObject()
+        {
+            var transformGroup = new TransformGroup();
+            _scaleTransform = new ScaleTransform(1, 1, 0, 0);
+            _translateTransform = new TranslateTransform(0, 0);
+            transformGroup.Children.Add(_scaleTransform);
+            transformGroup.Children.Add(_translateTransform);
+            this.Transform = transformGroup;
+        }
+
+        abstract protected void draw();
+
+        public void setSize(double width, double height)
+        {
+            _width = width;
+            _height = height;
+            draw();
+        }
+
+        public void setAngle(double angle)
+        {
+            _angle = angle;
+            draw();
+        }
+
+        public void setLeftTopPoint(Point leftTopPoint)
+        {
+            _leftTopPoint = leftTopPoint;
+            draw();
+        }
+
+        public void setZoom(double magnification, Point zoomCenter)
+        {
+            _scaleTransform.CenterX = zoomCenter.X;
+            _scaleTransform.CenterY = zoomCenter.Y;
+            _scaleTransform.ScaleX = magnification;
+            _scaleTransform.ScaleY = magnification;
+        }
+
+        public void addTranslation(double translateX, double translateY)
+        {
+            _translateTransform.X += translateX;
+            _translateTransform.Y += translateY;
+        }
+    }
+    /*class pipelineObject: DrawingVisual
     {
         // Матрицы трансформации вращения, увеличения и переноса
         private RotateTransform _rotateTransform;
@@ -127,5 +182,5 @@ namespace Redactor
             return new Rect(new Point(-_width/2, -_height/2), new Size(_width, _height));
         }
         
-    }
+    }*/
 }

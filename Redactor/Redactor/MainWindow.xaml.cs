@@ -26,6 +26,5 @@ namespace Redactor
         {
             InitializeComponent();
         }
-
     }
 }
