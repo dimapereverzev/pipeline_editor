@@ -20,11 +20,19 @@ namespace Redactor
     /// </summary>
     public partial class MainWindow : Window
     {
-        Point currentPoint = new Point();
-
         public MainWindow()
         {
             InitializeComponent();
+            paintSurface.MouseMove += new MouseEventHandler(DrawingSurface_MouseMove);
         }
+
+        private void DrawingSurface_MouseMove(object sender, MouseEventArgs e)
+        {
+            Point position = e.GetPosition(this);
+
+            //mouseLabel.Content = "Mouse: [" + position.X.ToString() + ", " + position.Y.ToString() + "]";
+        }
+
+        
     }
 }

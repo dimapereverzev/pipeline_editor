@@ -12,218 +12,318 @@ using System.Windows.Media.Imaging;
 
 namespace Redactor
 {
-    class DrawingSurface : Canvas
+    class DrawingSurface : Panel
     {
-        /*class RedactingPipelineObjects : pipelineObject
+        class Barrel:
+            PipelineElement
         {
-            public RedactingPipelineObjects(pipelineObject checkedObj):
-                base(checkedObj.center, checkedObj.width, checkedObj.height)
+            private void Rotate90(object sender, RoutedEventArgs e)
+            {
+                MessageBox.Show("HELLO");
+            }
+
+            protected override void Draw()
             {
                 using (DrawingContext dc = this.RenderOpen())
                 {
-                    var pen = new Pen(Brushes.Red, 2);
-                    dc.DrawRectangle((Brush)null, pen, checkedObj.getRect());
-                }
-
-            }
-        };*/
-
-        /*class Barrel : pipelineObject
-        {
-            public Barrel():
-                base(new Point(60, 60), 40, 40)
-            {
-                using (DrawingContext dc = this.RenderOpen())
-                {
-                    var overlayImage = new BitmapImage(new Uri(@"C:\projects\c#\Redactor\Redactor\barrel.png"));
-                    dc.DrawImage(overlayImage,
-                           new Rect(-20, -20, 40, 40));
+                    var rect = new Rect(-width / 2, -height / 2, width, height);
+                    var overlayImage = new BitmapImage(new Uri(@"D:\Downloads\Redactor\Redactor\Redactor\barrel.png"));
+                    dc.DrawImage(overlayImage, rect);
+                    if (selected)
+                    {
+                        var pen = new Pen(Brushes.LightSkyBlue, 1);
+                        pen.DashStyle = DashStyles.Dash;
+                        dc.DrawRectangle(Brushes.Transparent, pen, rect);
+                    }
                 }
             }
-        };*/
 
-        class Barrel : PipelineObject
-        {
-            public Barrel(Point spaceLeftTopPoint, double spaceWidth, double spaceHeight, double angle)
+            public override ContextMenu GetMenu()
             {
-                _leftTopPoint = spaceLeftTopPoint;
-                _width = spaceWidth;
-                _height = spaceHeight;
-                _angle = angle;
-                draw();
+                var rotate90 = new MenuItem();
+                rotate90.Header = "Повернуть на 90 градусов";
+                rotate90.Click += new RoutedEventHandler(Rotate90);
+                var menu = new ContextMenu();
+                menu.Items.Add(rotate90);
+                return menu;
             }
 
-            protected override void draw()
+            public Barrel(Point center):
+                base()
             {
-                using (DrawingContext dc = this.RenderOpen())
-                {
-                    var overlayImage = new BitmapImage(new Uri(@"C:\projects\c#\Redactor\Redactor\barrel.png"));
-                    dc.DrawImage(overlayImage, new Rect(_leftTopPoint.X, _leftTopPoint.Y, _width, _height));
-                }
+                _width = 100;
+                _height = 100;
+                this.center = center;
+                Draw();
             }
         }
 
-        class Position : DrawingVisual
+        private VisualCollection visuals;
+        private List<DrawingVisual> selectedElements = new List<DrawingVisual>();
+        private DrawingVisual selector = new DrawingVisual();
+        private Point dragStartPoint;
+        private Point dragPrevPoint;
+        private bool dragEnable;
+        private int state;
+        private enum actions
         {
-            private Point leftTopPoint;
-
-            public Position()
-            {
-                draw(new Point(0,0), 1);
-            }
-
-            public void draw(Point point, double zoom)
-            {
-                using (DrawingContext dc = this.RenderOpen())
-                {
-                    dc.DrawText(
-                        new FormattedText(
-                            "["+point.X.ToString() + ", " + point.Y.ToString()+"], X"+zoom.ToString(),
-                            CultureInfo.GetCultureInfo("en-us"),
-                            FlowDirection.LeftToRight,
-                            new Typeface("Verdana"),
-                            14, 
-                            System.Windows.Media.Brushes.Black
-                        ), 
-                        new Point(0, 0));
-                }
-            }
+            MOUSE_LEFTBUTTON_DOWN,
+            MOUSE_LEFTBUTTON_UP,
+            MOUSE_RIGHTBUTTON_DOWN,
+            MOUSE_RIGHTBUTTON_UP,
+            MOUSE_MOVE,
+            DEFAULT_ACTION,
+            DRAGGING_ELEMENT,
+            DRAGGING_SURFACE,
+            MULTISELECTING
         }
-
-        VisualCollection visuals;
-        DrawingVisual currentFocusedVisual;
-
-        VisualCollection currentCheckedVisual;
-
-        bool isDragVisual;
-        bool isDragSpace;
-        Point dragStart;
-
-        Point leftTopSpacePoint;
-        double zoom;
+        private List<DrawingVisual> hittedElements = new List<DrawingVisual>();
 
         public DrawingSurface()
         {
-            currentFocusedVisual = null;
-            currentCheckedVisual = null;
-            isDragVisual = false;
-            isDragSpace = false;
             visuals = new VisualCollection(this);
-            leftTopSpacePoint = new Point(0, 0);
-            zoom = 1;
+            state = (int)actions.DEFAULT_ACTION;
+            selector.Opacity = 0.5;
 
             this.Loaded += new RoutedEventHandler(DrawingSurface_Loaded);
             this.MouseMove += new MouseEventHandler(DrawingSurface_MouseMove);
             this.MouseLeftButtonDown += new MouseButtonEventHandler(DrawingSurface_MouseLeftButtonDown);
             this.MouseLeftButtonUp += new MouseButtonEventHandler(DrawingSurface_MouseLeftButtonUp);
-            this.MouseWheel += new MouseWheelEventHandler(DrawingSurface_MouseWheel);
+            this.MouseRightButtonDown += new MouseButtonEventHandler(DrawingSurface_MouseRightButtonDown);
+            this.MouseRightButtonUp += new MouseButtonEventHandler(DrawingSurface_MouseRightButtonUp);
+            //this.MouseWheel += new MouseWheelEventHandler(DrawingSurface_MouseWheel);
         }
 
         private void DrawingSurface_Loaded(object sender, RoutedEventArgs e)
         {
-            var obj = new Barrel(new Point(100,100), 50, 70, 0);
-            visuals.Add((DrawingVisual)obj);
-            visuals.Add((DrawingVisual)(new Position()));
+            var el = new Barrel(new Point(100, 100));
+            AddElement(el);
+            el = new Barrel(new Point(210, 210));
+            AddElement(el);
+        }
+
+        private void DrawingSurface_KeyUp(object sender, KeyEventArgs e)
+        {
+            
         }
 
         private void DrawingSurface_MouseMove(object sender, MouseEventArgs e)
         {
             Point position = e.GetPosition(this);
-            if (isDragVisual)
+
+            switch ((actions)state)
             {
-                ((PipelineObject)currentFocusedVisual).setLeftTopPoint(new Point(leftTopSpacePoint.X + position.X, leftTopSpacePoint.Y + position.Y));
-            }
-            else if (isDragSpace)
-            {
-                leftTopSpacePoint.X += (dragStart.X - position.X );
-                leftTopSpacePoint.Y += (dragStart.Y - position.Y);
-                ((Position)visuals[visuals.Count - 1]).draw(leftTopSpacePoint, zoom);
-                for (var i = 0; i < visuals.Count-1; i++)
-                {
-                    ((PipelineObject)visuals[i]).addTranslation(position.X - dragStart.X, position.Y - dragStart.Y);
-                }
-                dragStart = position;
-            }
-            else
-            {
-                DrawingVisual visual = this.GetVisual(position);
-                if (visual == null)
-                {
-                    if (currentFocusedVisual != null)
+                case actions.MOUSE_LEFTBUTTON_DOWN:
+                    GetElementsInPoint(position);
+                    if (hittedElements.Count > 0)
                     {
-                        currentFocusedVisual.Opacity = 1;
-                        currentFocusedVisual = null;
+                        if (!(hittedElements[0] as PipelineElement).selected)
+                        {
+                            ClearSelection();
+                            SelectElement(hittedElements[0]);
+                        }
+                        state = (int)actions.DRAGGING_ELEMENT;
                     }
-                }
-                else
-                {
-                    if (currentFocusedVisual == null)
+                    else
                     {
-                        visual.Opacity = 0.5;
-                        currentFocusedVisual = visual;
+                        state = (int)actions.DRAGGING_SURFACE;
                     }
-                    else if (currentFocusedVisual != visual)
+                    foreach (var element in selectedElements)
                     {
-                        currentFocusedVisual.Opacity = 1;
-                        visual.Opacity = 0.5;
-                        currentFocusedVisual = visual;
+                        ElementToTop(element);
                     }
-                }
+                    dragStartPoint = dragPrevPoint = position;
+                    break;
+                case actions.MOUSE_RIGHTBUTTON_DOWN:
+                    dragStartPoint = position;
+                    visuals.Add(selector);
+                    state = (int)actions.MULTISELECTING;
+                    break;
+                case actions.MULTISELECTING:
+                    DrawingSurface_MultiSelecting(position);
+                    break;
+                case actions.DRAGGING_ELEMENT:
+                    DrawingSurface_DragElement(position);
+                    break;
             }
         }
 
         private void DrawingSurface_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
         {
             Point position = e.GetPosition(this);
-            dragStart = position;
-            if (currentFocusedVisual != null)
-            {
-                isDragVisual = true;
-            }
-            else
-            {
-                isDragSpace = true;
-            }
-        }
 
+            state = (int)actions.MOUSE_LEFTBUTTON_DOWN;
+        }
         private void DrawingSurface_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
         {
             Point position = e.GetPosition(this);
-            if (isDragVisual)
+
+            switch ((actions)state)
             {
-                ((PipelineObject)currentFocusedVisual).setLeftTopPoint(new Point(leftTopSpacePoint.X + position.X, leftTopSpacePoint.Y + position.Y));
-                var obj = (PipelineObject)currentFocusedVisual;
-                isDragVisual = false;
-                /*if (!obj.check)
+                case actions.MOUSE_LEFTBUTTON_DOWN:
+                    DrawingSurface_Mouse_LeftButton_Click(position);
+                    break;
+                case actions.DRAGGING_ELEMENT:
+                    DrawingSurface_StopDragElement(position);
+                    break;
+            }
+
+            state = (int)actions.MOUSE_LEFTBUTTON_UP;
+        }
+
+        private void DrawingSurface_MouseRightButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            Point position = e.GetPosition(this);
+            state = (int)actions.MOUSE_RIGHTBUTTON_DOWN;
+        }
+        private void DrawingSurface_MouseRightButtonUp(object sender, MouseButtonEventArgs e)
+        {
+            Point position = e.GetPosition(this);
+            switch ((actions)state)
+            {
+                case actions.MULTISELECTING:
+                    DrawingSurface_StopMultiselecting(position);
+                    break;
+
+                case actions.MOUSE_RIGHTBUTTON_DOWN:
+                    DrawingSurface_OpenContextMenu(position);
+                    break;
+            }
+            state = (int)actions.MOUSE_RIGHTBUTTON_UP;
+        }
+
+
+        private void DrawingSurface_Mouse_LeftButton_Click(Point point)
+        {
+            GetElementsInPoint(point);
+
+            ClearSelection();
+
+            if (hittedElements.Count > 0)
+            {
+                SelectElement(hittedElements[0]);
+            }
+        }
+
+        private void DrawingSurface_DragElement(Point point)
+        {
+            foreach(var visual in selectedElements){
+                var element = visual as PipelineElement;
+                element.AddCenter(point.X - dragPrevPoint.X, point.Y - dragPrevPoint.Y);
+            }
+            dragEnable = true;
+            foreach (var visual in selectedElements)
+            {
+                var element = visual as PipelineElement;
+                GetElementsInArea(element.GetRect());
+                if (hittedElements.Count > 1)
                 {
-                    obj.check = true;
-                    visuals.Add((DrawingVisual)(new RedactingPipelineObjects(obj)));
-                }*/
+                    element.error = true;
+                    dragEnable = false;
+                }
+                else
+                {
+                    element.error = false;
+                }
             }
-            else
+            dragPrevPoint = point;
+        }
+        private void DrawingSurface_StopDragElement(Point point)
+        {
+            if (!dragEnable)
             {
-                isDragSpace = false;
+                foreach (var visual in selectedElements)
+                {
+                    var element = visual as PipelineElement;
+                    element.AddCenter(dragStartPoint.X - point.X, dragStartPoint.Y - point.Y);
+                    element.error = false;
+                }
+            }
+        }
+       
+        private void DrawingSurface_MultiSelecting(Point point)
+        {
+            using (DrawingContext dc = selector.RenderOpen())
+            {
+                dc.DrawRectangle(Brushes.Blue, new Pen(Brushes.BlueViolet, 1), new Rect(dragStartPoint, point));
+            }
+        }
+        private void DrawingSurface_StopMultiselecting(Point point)
+        {
+            ClearSelection();
+            visuals.Remove(selector);
+            using (DrawingContext dc = selector.RenderOpen())
+            {
+            }
+            GetElementsInArea(new Rect(dragStartPoint, point));
+            foreach (var i in hittedElements)
+            {
+                SelectElement(i);
             }
         }
 
-        private void DrawingSurface_MouseWheel(object sender, MouseWheelEventArgs e)
+        private void DrawingSurface_OpenContextMenu(Point point)
         {
-            zoom += (double)e.Delta / 1000.0;
-            if (zoom < 0.1)
+            GetElementsInPoint(point);
+            if (hittedElements.Count > 0)
             {
-                zoom = 0.1;
+                (hittedElements[0] as PipelineElement).GetMenu().IsOpen = true;
             }
-            ((Position)visuals[visuals.Count - 1]).draw(leftTopSpacePoint, zoom);
-            for (var i = 0; i < visuals.Count - 1; i++)
-            {
-                ((PipelineObject)visuals[i]).setZoom(zoom, e.GetPosition(this));
-            }            
         }
 
-        public DrawingVisual GetVisual(Point point)
+        private void SelectElement(DrawingVisual visual)
         {
-            HitTestResult result = VisualTreeHelper.HitTest(this, point);
-            return result.VisualHit as DrawingVisual;
+            (visual as PipelineElement).selected = true;
+            selectedElements.Add(visual);
+        }
+
+        private void ClearSelection()
+        {
+            for (var i = 0; i < selectedElements.Count; i++)
+            {
+                (selectedElements[i] as PipelineElement).selected = false;
+            }
+            selectedElements.Clear();
+        }
+
+        private void GetElementsInPoint(Point point)
+        {
+            hittedElements.Clear();
+            VisualTreeHelper.HitTest(
+                this, 
+                null,
+                new HitTestResultCallback(MainHitTestResult),
+                new PointHitTestParameters(point)
+            );
+        }
+        private void GetElementsInArea(Rect area)
+        {
+            hittedElements.Clear();
+            VisualTreeHelper.HitTest(
+                this,
+                null,
+                new HitTestResultCallback(MainHitTestResult),
+                new GeometryHitTestParameters(new RectangleGeometry(area))
+            );
+        }
+        public HitTestResultBehavior MainHitTestResult(HitTestResult result)
+        {
+            if ((result.VisualHit as DrawingVisual) != null)
+            {
+                hittedElements.Add(result.VisualHit as DrawingVisual);
+            }
+            return HitTestResultBehavior.Continue;
+        }
+
+        private void ElementToTop(DrawingVisual el)
+        {
+            visuals.Remove(el);
+            visuals.Add(el);
+        }
+
+        private void AddElement(DrawingVisual el)
+        {
+            visuals.Add(el);
         }
 
         protected override Visual GetVisualChild(int index)
